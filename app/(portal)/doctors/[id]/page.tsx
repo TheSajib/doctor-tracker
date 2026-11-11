@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { DoctorDetailView } from "@/components/doctors/doctor-detail-view";
 
 export const metadata: Metadata = {
@@ -6,5 +7,9 @@ export const metadata: Metadata = {
 };
 
 export default function DoctorDetailPage() {
-  return <DoctorDetailView />;
+  return (
+    <Suspense fallback={<p className="text-sm text-muted">Loading doctor profile…</p>}>
+      <DoctorDetailView />
+    </Suspense>
+  );
 }

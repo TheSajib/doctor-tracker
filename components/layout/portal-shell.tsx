@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import {
   LayoutGrid,
   LogOut,
@@ -27,13 +27,10 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function PortalShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+function SessionGate() {
   const router = useRouter();
   const { ready, user, logout } = useAuth();
   const clinic = useClinic();
-  const [openPath, setOpenPath] = useState<string | null>(null);
-  const menuOpen = openPath === pathname;
 
   useEffect(() => {
     if (!ready || user) return;
@@ -41,16 +38,28 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
     router.replace("/");
   }, [ready, user, logout, router]);
 
-  if (!ready || !clinic.ready || !user) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-canvas">
-        <p className="flex items-center gap-3 text-sm text-muted">
-          <span className="size-2.5 animate-pulse rounded-full bg-teal" />
-          Opening workspace
-        </p>
-      </div>
-    );
-  }
+  if (ready && clinic.ready && user) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-canvas">
+      <p className="flex items-center gap-3 text-sm text-muted">
+        <span className="size-2.5 animate-pulse rounded-full bg-teal" />
+        Opening workspace
+      </p>
+    </div>
+  );
+}
+
+function PortalNav({
+  menuOpen,
+  onClose,
+}: {
+  menuOpen: boolean;
+  onClose: () => void;
+}) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
 
   function signOut() {
     logout();
@@ -72,6 +81,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
+              onClick={onClose}
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
                 active
@@ -88,7 +98,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       <div className="mt-auto p-3">
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
           <p className="text-[11px] text-white/45">Signed in as</p>
-          <p className="mt-1 text-sm break-all text-white/90">{user.email}</p>
+          <p className="mt-1 text-sm break-all text-white/90">{user?.email}</p>
           <button
             type="button"
             onClick={signOut}
@@ -103,7 +113,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] lg:block">
         {sidebar}
       </aside>
@@ -112,7 +122,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           type="button"
           aria-label="Close menu"
           className="fixed inset-0 z-40 bg-[#10211e]/50 lg:hidden"
-          onClick={() => setOpenPath(null)}
+          onClick={onClose}
         />
       ) : null}
       <aside
@@ -123,15 +133,32 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       >
         {sidebar}
       </aside>
+    </>
+  );
+}
+
+function NavFallback() {
+  return (
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] bg-[#062421] lg:block" />
+  );
+}
+
+export function PortalShell({ children }: { children: React.ReactNode }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <div className="min-h-screen bg-canvas">
+      <Suspense fallback={<NavFallback />}>
+        <PortalNav menuOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+      </Suspense>
+      <SessionGate />
       <div className="lg:pl-[232px]">
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-canvas/90 px-4 py-3 backdrop-blur lg:hidden">
           <Logo />
           <button
             type="button"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
-            onClick={() =>
-            setOpenPath((current) => (current === pathname ? null : pathname))
-          }
+            onClick={() => setMenuOpen((open) => !open)}
             className="grid size-10 place-items-center rounded-xl text-ink"
           >
             {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
