@@ -1,5 +1,5 @@
-import { isRemote } from "@/lib/config";
-import { http } from "@/lib/api";
+import { ApiError, http } from "@/lib/api";
+import { isRemoteAuth } from "@/lib/config";
 import { cleanText, normalizeEmail } from "@/lib/format";
 import { clearSession, readSession, writeSession } from "@/lib/session";
 import { readUsers, writeUsers } from "@/lib/storage";
@@ -22,7 +22,12 @@ function emit() {
 function ensure() {
   if (loaded || typeof window === "undefined") return;
   loaded = true;
-  snapshot = { ready: true, user: readSession()?.user ?? null };
+  const session = readSession();
+  if (isRemoteAuth && session) {
+    snapshot = { ready: false, user: null };
+    return;
+  }
+  snapshot = { ready: true, user: session?.user ?? null };
 }
 
 export function subscribeAuth(listener: () => void) {
@@ -46,10 +51,41 @@ function commit(session: Session | null) {
   emit();
 }
 
+function unreachable(error: unknown): never {
+  if (error instanceof TypeError) {
+    throw new Error("Cannot reach the clinic API. Start the backend and try again.");
+  }
+  throw error;
+}
+
+export async function refreshRemoteSession() {
+  if (!isRemoteAuth || typeof window === "undefined") return;
+  const tokenAtStart = readSession()?.token;
+  if (!tokenAtStart) return;
+  try {
+    const user = await http.me();
+    if (readSession()?.token !== tokenAtStart) return;
+    commit({ token: tokenAtStart, user });
+  } catch (error) {
+    if (readSession()?.token !== tokenAtStart) return;
+    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+      commit(null);
+      return;
+    }
+    const current = readSession();
+    snapshot = { ready: true, user: current?.user ?? null };
+    emit();
+  }
+}
+
 export async function loginWithPassword(email: string, password: string) {
-  if (isRemote) {
-    const session = await http.login(normalizeEmail(email), password);
-    commit(session);
+  if (isRemoteAuth) {
+    try {
+      const session = await http.login(normalizeEmail(email), password);
+      commit(session);
+    } catch (error) {
+      unreachable(error);
+    }
     return;
   }
 
@@ -67,9 +103,13 @@ export async function signupAccount(input: SignupInput) {
   const email = normalizeEmail(input.email);
   const name = cleanText(input.name);
 
-  if (isRemote) {
-    const session = await http.signup({ name, email, password: input.password });
-    commit(session);
+  if (isRemoteAuth) {
+    try {
+      const session = await http.signup({ name, email, password: input.password });
+      commit(session);
+    } catch (error) {
+      unreachable(error);
+    }
     return;
   }
 
@@ -91,8 +131,8 @@ export async function signupAccount(input: SignupInput) {
 }
 
 export function logoutAccount() {
-  clearSession();
-  if (!snapshot.user) return;
-  snapshot = { ready: true, user: null };
-  emit();
+  if (isRemoteAuth && readSession()?.token) {
+    void http.logout().catch(() => {});
+  }
+  commit(null);
 }

@@ -107,7 +107,15 @@ export function DoctorsView() {
       </section>
       {open ? (
         <Modal title="New doctor" onClose={() => setOpen(false)}>
-          <DoctorForm onDone={() => setOpen(false)} />
+          <DoctorForm
+            onDone={() => {
+              setSearch("");
+              setSpecialization("all");
+              setRange("any");
+              setPage(1);
+              setOpen(false);
+            }}
+          />
         </Modal>
       ) : null}
     </div>

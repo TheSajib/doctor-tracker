@@ -1,11 +1,12 @@
 "use client";
 
-import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
+import { useEffect, createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import {
   getAuthClientSnapshot,
   getAuthServerSnapshot,
   loginWithPassword,
   logoutAccount,
+  refreshRemoteSession,
   signupAccount,
   subscribeAuth,
 } from "@/lib/auth-store";
@@ -27,6 +28,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     getAuthClientSnapshot,
     getAuthServerSnapshot,
   );
+
+  useEffect(() => {
+    void refreshRemoteSession();
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({

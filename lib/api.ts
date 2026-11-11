@@ -1,6 +1,7 @@
 import { apiBaseUrl } from "@/lib/config";
 import { readSession } from "@/lib/session";
 import type {
+  AuthUser,
   DashboardData,
   Doctor,
   DoctorInput,
@@ -76,6 +77,12 @@ export const http = {
       method: "POST",
       body: JSON.stringify(input),
     });
+  },
+  me() {
+    return request<{ user: AuthUser }>("/auth/me").then((body) => body.user);
+  },
+  logout() {
+    return request<void>("/auth/logout", { method: "POST" });
   },
   listDoctors(query: DoctorQuery) {
     return request<Page<DoctorRow>>(
