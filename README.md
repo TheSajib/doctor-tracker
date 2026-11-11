@@ -2,7 +2,7 @@
 
 Doctor Tracker is a calm administrative workspace for clinic staff. Authenticated users manage a network of doctors, keep each doctor's patients up to date, and read the health of the network from a single dashboard: caseload, condition mix, and admissions over the last 30 days.
 
-This repository is the Next.js client. It runs on its own today with a local data adapter, and it is ready to talk to a separate Node.js and Express API over REST when that service is added.
+This repository is the Next.js client. Sign-in, doctors, patients, and the dashboard call the Express API in `../doctor-tracker-backend`.
 
 ## Setup guide
 
@@ -16,14 +16,23 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-`.env.example` is the template. Copy it to `.env.local` and leave the defaults while you are working without the API:
+Start the API first, from `../doctor-tracker-backend`:
+
+```bash
+docker compose up -d
+copy .env.example .env
+npm install
+npm run dev
+```
+
+`.env.example` is the client template. Copy it to `.env.local`:
 
 ```bash
 NEXT_PUBLIC_DATA_SOURCE=local
 NEXT_PUBLIC_API_URL=http://localhost:4000
 ```
 
-`local` stores accounts, doctors, and patients in the browser. Nothing else has to be running. When the Express service exists, set `NEXT_PUBLIC_DATA_SOURCE=remote` and point `NEXT_PUBLIC_API_URL` at it. The screens stay the same.
+`remote` loads doctors, patients, and the dashboard from the API. `local` keeps those records in the browser. Login and signup always use the API when `NEXT_PUBLIC_API_URL` is set, and the route gate checks `GET /auth/me` before a portal page renders.
 
 ### Demo credentials
 
@@ -31,7 +40,7 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 | --- | --- |
 | sajibcse28@gmail.com | Admin@123 |
 
-The sign-in card can fill these in. You can also create a separate account from Sign up. In local mode the password lives in the browser only, as a stand-in until the API hashes credentials.
+The sign-in card can fill these in. You can also create a separate account from Sign up. The API stores a bcrypt hash. It never sends the password back.
 
 ## System architecture
 
@@ -39,25 +48,29 @@ The sign-in card can fill these in. You can also create a separate account from 
 flowchart LR
   Browser["Next.js client"] --> Proxy["proxy.ts session gate"]
   Browser --> Hooks["Clinic hooks"]
+  Proxy --> AuthApi["GET /auth/me"]
   Hooks --> Local["Local adapter"]
   Hooks --> Http["HTTP adapter"]
   Local --> Storage["Browser storage"]
-  Http --> Api["Express API later"]
-  Api --> Mongo["MongoDB later"]
+  Http --> Api["Express API"]
+  Browser --> AuthApi
+  AuthApi --> Mongo["MongoDB users and sessions"]
 ```
 
-1. `proxy.ts` checks the `dt_session` cookie before the dashboard, doctors, and patients routes render. Missing sessions return to sign-in. A session cookie on the sign-in pages continues to the dashboard.
+1. `proxy.ts` checks the `dt_session` cookie before the dashboard, doctors, and patients routes render. When `NEXT_PUBLIC_API_URL` is set, it also calls `GET /auth/me`. A missing or rejected session returns to sign-in. A live session on the sign-in pages continues to the dashboard.
 2. Screens never read storage or `fetch` directly. They call hooks (`useDoctorPage`, `usePatientPage`, `useDashboardData`) that already accept search text, filters, date range, and page.
 3. In local mode, pure query functions filter, sort, and paginate the clinic snapshot. The same query shape is what the HTTP adapter will send as query parameters.
 4. Mutations update one clinic store. Dashboard totals, doctor caseloads, and both patient lists all read that store, so a new patient shows up everywhere without a second copy of the data.
-5. The future Express service owns MongoDB. This client will send `Authorization: Bearer` and keep using `dt_session` only as the gate for the Next.js routes.
+5. The Express service owns accounts in MongoDB. This client sends `Authorization: Bearer` and keeps `dt_session` as the cookie the Next.js route gate reads. Logout revokes that session on the API.
 
 ### REST contract for the API project
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| POST | `/auth/login` | `{ email, password }` → `{ token, user: { id, name, email } }` |
-| POST | `/auth/signup` | `{ name, email, password }` → same session shape |
+| POST | `/auth/login` | `{ email, password }` → `200` `{ token, user: { id, name, email } }` |
+| POST | `/auth/signup` | `{ name, email, password }` → `201` and the same session shape |
+| GET | `/auth/me` | Bearer token → `{ user: { id, name, email } }` |
+| POST | `/auth/logout` | Revokes the current session. `204` |
 | GET | `/doctors` | `search`, `specialization`, `range` (`any`, `7d`, `30d`, `90d`), `page`, `limit` |
 | POST | `/doctors` | `{ name, specialization, hospital, phone, email }` |
 | GET | `/doctors/:id` | One doctor, including `patientCount` |
@@ -67,7 +80,7 @@ flowchart LR
 | DELETE | `/patients/:id` | `204` |
 | GET | `/dashboard` | Totals, condition counts, patients per doctor, 30-day series |
 
-List responses use `{ items, total, page, pageSize, pages, from, to }`. Doctor rows include `patientCount`. Patient rows include `doctorName`. Errors use `{ message }` and the matching HTTP status. Allow `Authorization` and `Content-Type` from the Next.js origin.
+List responses use `{ items, total, page, pageSize, pages, from, to }`. Doctor rows include `patientCount`. Patient rows include `doctorName`. Errors use `{ message, code }` and the matching HTTP status. The screens display `message`. Allow `Authorization` and `Content-Type` from the Next.js origin. A bearer token is required for doctors, patients, and the dashboard.
 
 Suggested MongoDB indexes when you build that service:
 

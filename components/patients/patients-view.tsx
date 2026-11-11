@@ -144,7 +144,13 @@ export function PatientsView({ doctorId }: { doctorId?: string }) {
         <Modal title="New patient" onClose={() => setCreating(false)}>
           <PatientForm
             lockDoctorId={doctorId}
-            onDone={() => setCreating(false)}
+            onDone={() => {
+              setSearch("");
+              setCondition("all");
+              setRange("any");
+              setPage(1);
+              setCreating(false);
+            }}
           />
         </Modal>
       ) : null}

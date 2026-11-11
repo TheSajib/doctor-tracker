@@ -11,6 +11,16 @@ import type {
   PatientRow,
 } from "@/lib/types";
 
+function newestFirst<T extends { id: string }>(
+  dateOf: (item: T) => string,
+  source: { id: string }[],
+) {
+  const addedOrder = new Map(source.map((item, index) => [item.id, index]));
+  return (left: T, right: T) =>
+    dateOf(right).localeCompare(dateOf(left)) ||
+    (addedOrder.get(right.id) ?? 0) - (addedOrder.get(left.id) ?? 0);
+}
+
 export function paginate<T>(items: T[], page: number, pageSize: number): Page<T> {
   const total = items.length;
   const pages = Math.max(1, Math.ceil(total / pageSize));
@@ -61,9 +71,7 @@ export function queryDoctors(
         .toLowerCase()
         .includes(needle);
     })
-    .sort(
-      (a, b) => b.patientCount - a.patientCount || a.name.localeCompare(b.name),
-    );
+    .sort(newestFirst((doctor) => doctor.joinedAt, doctors));
   return paginate(rows, query.page, query.pageSize || DOCTOR_PAGE_SIZE);
 }
 
@@ -84,9 +92,7 @@ export function queryPatients(
         .toLowerCase()
         .includes(needle);
     })
-    .sort(
-      (a, b) => b.admittedAt.localeCompare(a.admittedAt) || a.id.localeCompare(b.id),
-    );
+    .sort(newestFirst((patient) => patient.admittedAt, patients));
   return paginate(rows, query.page, query.pageSize || PATIENT_PAGE_SIZE);
 }
 
