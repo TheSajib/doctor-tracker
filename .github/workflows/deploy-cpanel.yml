@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: sajib-portfolio-production-deploy
+  group: doctor-tracker-production-deploy
   cancel-in-progress: false
 
 jobs:
@@ -54,10 +54,10 @@ jobs:
           REMOTE_USER: ${{ secrets.SSH_USER }}
           REMOTE_PORT: ${{ secrets.SSH_PORT }}
           SOURCE: ".next/standalone/"
-          TARGET: "/home/codevala/apps/sajibsportfolio/"
+          TARGET: "/home/codevala/apps/doctortracker/"
           EXCLUDE: ".env,.env.*,tmp/"
           SCRIPT_BEFORE: |
-            mkdir -p /home/codevala/apps/sajibsportfolio/tmp
+            mkdir -p /home/codevala/apps/doctortracker/tmp
           SCRIPT_BEFORE_REQUIRED: "true"
 
       - name: Verify deployed commit
@@ -69,7 +69,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             set -eu
-            cd /home/codevala/apps/sajibsportfolio
+            cd /home/codevala/apps/doctortracker
             echo "Expected commit: ${{ github.sha }}"
             cat DEPLOY_COMMIT.txt
             test "$(cat DEPLOY_COMMIT.txt)" = "${{ github.sha }}"
