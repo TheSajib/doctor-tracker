@@ -16,6 +16,7 @@ jobs:
 
     env:
       NEXT_PUBLIC_API_URL: https://api.doctortracker.codevala.com
+      NEXT_PUBLIC_DATA_SOURCE: remote
       NEXT_PUBLIC_WHATSAPP_NUMBER: "+8801721923155"
       NEXT_PUBLIC_CALL_NUMBER: "+8801721923155"
 
@@ -87,7 +88,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             set -eu
-            APP_ROOT="/home/codevala/apps/sajibsportfolio"
+            APP_ROOT="/home/codevala/apps/doctortracker"
             mkdir -p "$APP_ROOT/tmp"
             touch "$APP_ROOT/tmp/restart.txt"
             echo "Passenger restart requested."
