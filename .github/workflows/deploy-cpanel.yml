@@ -91,4 +91,8 @@ jobs:
             APP_ROOT="/home/codevala/apps/doctortracker"
             mkdir -p "$APP_ROOT/tmp"
             touch "$APP_ROOT/tmp/restart.txt"
-            echo "Passenger restart requested."
+            if command -v cloudlinux-selector >/dev/null 2>&1; then
+              cloudlinux-selector restart --json --interpreter nodejs --user "$(whoami)" --app-root apps/doctortracker || true
+            fi
+            pkill -f "$APP_ROOT/server.js" || true
+            echo "Doctor Tracker restart requested."
