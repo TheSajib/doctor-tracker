@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LayoutGrid,
   LogOut,
@@ -50,13 +50,7 @@ function SessionGate() {
   );
 }
 
-function PortalNav({
-  menuOpen,
-  onClose,
-}: {
-  menuOpen: boolean;
-  onClose: () => void;
-}) {
+function Sidebar({ onClose }: { onClose: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
@@ -67,7 +61,7 @@ function PortalNav({
     router.refresh();
   }
 
-  const sidebar = (
+  return (
     <div className="flex h-full flex-col bg-[#062421] text-white">
       <div className="px-5 pt-6">
         <Logo light />
@@ -111,11 +105,19 @@ function PortalNav({
       </div>
     </div>
   );
+}
 
+function PortalNav({
+  menuOpen,
+  onClose,
+}: {
+  menuOpen: boolean;
+  onClose: () => void;
+}) {
   return (
     <>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] lg:block">
-        {sidebar}
+        <Sidebar onClose={onClose} />
       </aside>
       {menuOpen ? (
         <button
@@ -131,7 +133,7 @@ function PortalNav({
           menuOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        {sidebar}
+        <Sidebar onClose={onClose} />
       </aside>
     </>
   );
@@ -145,12 +147,19 @@ function NavFallback() {
 
 export function PortalShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navReady, setNavReady] = useState(false);
+
+  useEffect(() => {
+    setNavReady(true);
+  }, []);
 
   return (
     <div className="min-h-screen bg-canvas">
-      <Suspense fallback={<NavFallback />}>
+      {navReady ? (
         <PortalNav menuOpen={menuOpen} onClose={() => setMenuOpen(false)} />
-      </Suspense>
+      ) : (
+        <NavFallback />
+      )}
       <SessionGate />
       <div className="lg:pl-[232px]">
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-canvas/90 px-4 py-3 backdrop-blur lg:hidden">

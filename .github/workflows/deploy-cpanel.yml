@@ -1,0 +1,91 @@
+
+name: Deploy to cPanel
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: sajib-portfolio-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      NEXT_PUBLIC_WHATSAPP_NUMBER: "+8801721923155"
+      NEXT_PUBLIC_CALL_NUMBER: "+8801721923155"
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js application
+        run: npm run build
+
+      - name: Assemble standalone app
+        run: |
+          test -f .next/standalone/server.js
+          mkdir -p .next/standalone/.next
+          if [ -d public ]; then
+            cp -a public .next/standalone/public
+          fi
+          cp -a .next/static .next/standalone/.next/static
+
+      - name: Add deployment version
+        run: echo "${GITHUB_SHA}" > .next/standalone/DEPLOY_COMMIT.txt
+
+      - name: Upload to cPanel
+        uses: easingthemes/ssh-deploy@v5.1.0
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: ${{ secrets.SSH_HOST }}
+          REMOTE_USER: ${{ secrets.SSH_USER }}
+          REMOTE_PORT: ${{ secrets.SSH_PORT }}
+          SOURCE: ".next/standalone/"
+          TARGET: "/home/codevala/apps/sajibsportfolio/"
+          EXCLUDE: ".env,.env.*,tmp/"
+          SCRIPT_BEFORE: |
+            mkdir -p /home/codevala/apps/sajibsportfolio/tmp
+          SCRIPT_BEFORE_REQUIRED: "true"
+
+      - name: Verify deployed commit
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -eu
+            cd /home/codevala/apps/sajibsportfolio
+            echo "Expected commit: ${{ github.sha }}"
+            cat DEPLOY_COMMIT.txt
+            test "$(cat DEPLOY_COMMIT.txt)" = "${{ github.sha }}"
+            test -f server.js
+            echo "Deployment files verified."
+
+      - name: Restart the app
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -eu
+            APP_ROOT="/home/codevala/apps/sajibsportfolio"
+            mkdir -p "$APP_ROOT/tmp"
+            touch "$APP_ROOT/tmp/restart.txt"
+            echo "Passenger restart requested."
